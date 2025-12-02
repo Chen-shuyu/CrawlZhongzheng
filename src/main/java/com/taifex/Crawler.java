@@ -4,6 +4,8 @@ import com.taifex.entity.AnnouncementDetail;
 import com.taifex.entity.AnnouncementSummary;
 import com.taifex.entity.Attachment;
 import com.taifex.utility.CrawlerException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -23,6 +25,8 @@ public class Crawler {
     private static final int BASE_TIMEOUT = 30000;         // 基礎超時：30秒
     private static final long MIN_RETRY_DELAY = 2000;      // 最小重試延遲：2秒
     private static final long MAX_RETRY_DELAY = 10000;     // 最大重試延遲：10秒
+
+    private static final Logger logger = LogManager.getLogger(Crawler.class);
 
     // --- Strict keywords ---
     private static final String[] KEYWORDS_STRICT = {
@@ -55,9 +59,9 @@ public class Crawler {
      * 改進：加入重試機制和更好的錯誤處理
      */
     public static List<AnnouncementSummary> fetchSummaries(String targetDate, String url) throws CrawlerException {
-        System.out.println("===== 開始抓取公告列表 =====");
-        System.out.println("目標日期: " + targetDate);
-        System.out.println("目標網址: " + url);
+        logger.info("===== 開始抓取公告列表 =====");
+        logger.info("目標日期: " + targetDate);
+        logger.info("目標網址: " + url);
 
         List<AnnouncementSummary> list = new ArrayList<AnnouncementSummary>();
         int attempt = 0;
@@ -66,21 +70,21 @@ public class Crawler {
         while (attempt < MAX_RETRIES) {
 
             try {
-                System.out.println("\n[嘗試 " + (attempt + 1) + "/" + MAX_RETRIES + "] 正在連線...");
+                logger.info("\n[嘗試 " + (attempt + 1) + "/" + MAX_RETRIES + "] 正在連線...");
 
                 // 每次重試增加超時時間
                 int timeout = BASE_TIMEOUT + (attempt * 10000);
-                System.out.println("超時設定: " + (timeout / 1000) + " 秒");
+                logger.info("超時設定: " + (timeout / 1000) + " 秒");
 
                 Document doc = Jsoup.connect(url)
                         .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                         .timeout(timeout)
                         .get();
 
-                System.out.println("✓ 連線成功！開始解析...");
+                logger.info("✓ 連線成功！開始解析...");
 
                 Elements rows = doc.select("tbody tr");
-                System.out.println("找到 " + rows.size() + " 筆公告");
+                logger.info("找到 " + rows.size() + " 筆公告");
 
                 int matchCount = 0;
                 for (Element row : rows) {
@@ -90,7 +94,7 @@ public class Crawler {
 
                         String title = row.select(".nt_subject a").text().trim();
                         if (!isTargetAnnouncement(title)) {
-                            System.out.println(title + " >> 不符合關鍵字!!! ");
+                            logger.info(title + " >> 不符合關鍵字!!! ");
                             continue; // skip unrelated titles
                         }
 
@@ -104,19 +108,19 @@ public class Crawler {
 
                         list.add(summary);
                         matchCount++;
-                        System.out.println("  [符合] " + title);
+                        logger.info("  [符合] " + title);
                     }
                 }
 
-                System.out.println("\n===== 抓取完成 =====");
-                System.out.println("符合條件: " + matchCount + " 筆");
-                System.out.println("總共: " + rows.size() + " 筆");
+                logger.info("\n===== 抓取完成 =====");
+                logger.info("符合條件: " + matchCount + " 筆");
+                logger.info("總共: " + rows.size() + " 筆");
 
                 return list;  // 成功，返回結果
 
             } catch (IOException e) {
                 attempt++;
-                System.err.println("✗ 連線失敗: " + e.getMessage());
+                logger.error("✗ 連線失敗: " + e.getMessage());
 
                 if (attempt >= MAX_RETRIES) {
                     // 達到最大重試次數，拋出例外
@@ -125,7 +129,7 @@ public class Crawler {
                             MAX_RETRIES,
                             e.getMessage()
                     );
-                    System.err.println("\n" + errorMsg);
+                    logger.error("\n" + errorMsg);
                     throw new CrawlerException(errorMsg, e);
                 }
 
@@ -133,7 +137,7 @@ public class Crawler {
                 long jitter = new Random().nextInt(2000);
                 long waitTime = Math.min(retryDelay + jitter, MAX_RETRY_DELAY);
 
-                System.out.println("等待 " + (waitTime / 1000.0) + " 秒後重試...");
+                logger.info("等待 " + (waitTime / 1000.0) + " 秒後重試...");
                 try {
                     Thread.sleep(waitTime);
                 } catch (InterruptedException ie) {
@@ -146,7 +150,7 @@ public class Crawler {
             } catch (Exception e) {
                 // 其他未預期的錯誤
                 String errorMsg = "抓取公告列表時發生未預期錯誤: " + e.getMessage();
-                System.err.println("✗ " + errorMsg);
+                logger.error("✗ " + errorMsg);
                 e.printStackTrace();
                 throw new CrawlerException(errorMsg, e);
             }
@@ -161,8 +165,8 @@ public class Crawler {
      * 改進：加入重試機制和更好的錯誤處理
      */
     public static AnnouncementDetail fetchAnnouncementDetail(String link) throws CrawlerException {
-        System.out.println("\n----- 抓取公告詳細內容 -----");
-        System.out.println("網址: " + link);
+        logger.info("\n----- 抓取公告詳細內容 -----");
+        logger.info("網址: " + link);
 
         int attempt = 0;
         long retryDelay = MIN_RETRY_DELAY;
@@ -170,7 +174,7 @@ public class Crawler {
         while (attempt < MAX_RETRIES) {
 
             try {
-                System.out.println("[嘗試 " + (attempt + 1) + "/" + MAX_RETRIES + "] 正在連線...");
+                logger.info("[嘗試 " + (attempt + 1) + "/" + MAX_RETRIES + "] 正在連線...");
 
                 int timeout = BASE_TIMEOUT + (attempt * 10000);
 
@@ -179,11 +183,11 @@ public class Crawler {
                         .timeout(timeout)
                         .get();
 
-                System.out.println("✓ 連線成功！開始解析詳細內容...");
+                logger.info("✓ 連線成功！開始解析詳細內容...");
 
                 Element table = doc.select("table.single_news").first();
                 if (table == null) {
-                    System.err.println("✗ 找不到公告內容表格");
+                    logger.error("✗ 找不到公告內容表格");
                     throw new CrawlerException("找不到公告內容表格，頁面結構可能已改變");
                 }
 
@@ -219,9 +223,9 @@ public class Crawler {
                     attachments.add(new Attachment(name, href));
                 }
 
-                System.out.println("✓ 解析完成");
-                System.out.println("  主旨: " + subject);
-                System.out.println("  附件數量: " + attachments.size());
+                logger.info("✓ 解析完成");
+                logger.info("  主旨: " + subject);
+                logger.info("  附件數量: " + attachments.size());
 
                 return new AnnouncementDetail(
                         subject, date, unit, category, level, views,
@@ -230,7 +234,7 @@ public class Crawler {
 
             } catch (IOException e) {
                 attempt++;
-                System.err.println("✗ 連線失敗: " + e.getMessage());
+                logger.error("✗ 連線失敗: " + e.getMessage());
 
                 if (attempt >= MAX_RETRIES) {
                     String errorMsg = String.format(
@@ -239,14 +243,14 @@ public class Crawler {
                             link,
                             e.getMessage()
                     );
-                    System.err.println("\n" + errorMsg);
+                    logger.error("\n" + errorMsg);
                     throw new CrawlerException(errorMsg, e);
                 }
 
                 long jitter = new Random().nextInt(2000);
                 long waitTime = Math.min(retryDelay + jitter, MAX_RETRY_DELAY);
 
-                System.out.println("等待 " + (waitTime / 1000.0) + " 秒後重試...");
+                logger.info("等待 " + (waitTime / 1000.0) + " 秒後重試...");
                 try {
                     Thread.sleep(waitTime);
                 } catch (InterruptedException ie) {
@@ -258,7 +262,7 @@ public class Crawler {
 
             } catch (Exception e) {
                 String errorMsg = "抓取公告詳細內容時發生未預期錯誤: " + e.getMessage();
-                System.err.println("✗ " + errorMsg);
+                logger.error("✗ " + errorMsg);
                 e.printStackTrace();
                 throw new CrawlerException(errorMsg, e);
             }

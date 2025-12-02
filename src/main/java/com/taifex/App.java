@@ -4,6 +4,8 @@ import com.taifex.entity.AnnouncementDetail;
 import com.taifex.entity.AnnouncementSummary;
 import com.taifex.utility.CrawlerException;
 import com.taifex.utility.MailService;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -13,31 +15,34 @@ import java.util.List;
 
 public class App {
 
+    // Log4j 2 Logger
+    private static final Logger logger = LogManager.getLogger(App.class);
+
     // 定義日期格式
     private static final DateTimeFormatter FORMATTER_YYYYMMDD = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter FORMATTER_YYYY_MM_DD = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public static void main(String[] args) throws Exception {
-        System.out.println("========================================");
-        System.out.println("  中正國中公告爬蟲 v2.0");
-        System.out.println("========================================\n");
+        logger.info("========================================");
+        logger.info("  中正國中公告爬蟲 v2.0");
+        logger.info("========================================\n");
 
         final String url = "https://www.ccjhs.tp.edu.tw/category/news/";
 
         try {
             // 1. 取得目標日期
             String targetDate = (args.length == 1) ? formatDate(args[0]) : getTodayString();
-            System.out.println("DATE：" + targetDate);
+            logger.info("DATE：" + targetDate);
 
             // 2. 抓取公告列表（加入錯誤處理）
             List<AnnouncementSummary> summaries;
             try {
                 summaries = Crawler.fetchSummaries(targetDate, url);
             } catch (CrawlerException e) {
-                System.err.println("\n========================================");
-                System.err.println("錯誤：無法抓取公告列表");
-                System.err.println("原因：" + e.getMessage());
-                System.err.println("========================================");
+                logger.error("\n========================================");
+                logger.error("錯誤：無法抓取公告列表");
+                logger.error("原因：" + e.getMessage());
+                logger.error("========================================");
 
                 // 可以選擇：
                 // 1. 直接結束程式
@@ -50,15 +55,15 @@ public class App {
 
             // 檢查是否有符合的公告
             if (summaries.isEmpty()) {
-                System.out.println("\n========================================");
-                System.out.println("沒有符合條件的公告");
-                System.out.println("========================================");
+                logger.info("\n========================================");
+                logger.info("沒有符合條件的公告");
+                logger.info("========================================");
                 return;
             }
 
-            System.out.println("\n========================================");
-            System.out.println("找到 " + summaries.size() + " 筆符合的公告");
-            System.out.println("========================================\n");
+            logger.info("\n========================================");
+            logger.info("找到 " + summaries.size() + " 筆符合的公告");
+            logger.info("========================================\n");
 
             // 3. 建立郵件服務（只建立一次）
             MailService mailService = new MailService("SendMail", "16Password");
@@ -70,9 +75,9 @@ public class App {
 
             for (int i = 0; i < summaries.size(); i++) {
                 AnnouncementSummary summary = summaries.get(i);
-                System.out.println("\n----- 處理公告 " + (i + 1) + "/" + summaries.size() + " -----");
-                System.out.println("標題: " + summary.getTitle());
-                System.out.println("連結: " + summary.getLink());
+                logger.info("\n----- 處理公告 " + (i + 1) + "/" + summaries.size() + " -----");
+                logger.info("標題: " + summary.getTitle());
+                logger.info("連結: " + summary.getLink());
 
                 try {
                     // 4.1 抓取詳細內容
@@ -82,39 +87,39 @@ public class App {
 //                    sendAnnouncements(detail, mailService, "TOMAIL");
 
                     successCount++;
-                    System.out.println("✓ 處理成功");
+                    logger.info("✓ 處理成功");
 
                 } catch (CrawlerException e) {
                     failureCount++;
                     failedAnnouncements.add(summary.getTitle());
-                    System.err.println("✗ 處理失敗: " + e.getMessage());
+                    logger.error("✗ 處理失敗: " + e.getMessage());
                     // 繼續處理下一個，不要中斷
 
                 } catch (Exception e) {
                     failureCount++;
                     failedAnnouncements.add(summary.getTitle());
-                    System.err.println("✗ 未預期的錯誤: " + e.getMessage());
+                    logger.error("✗ 未預期的錯誤: " + e.getMessage());
                     e.printStackTrace();
                     // 繼續處理下一個
                 }
             }
 
             // 5. 顯示最終統計
-            System.out.println("\n========================================");
-            System.out.println("  執行摘要");
-            System.out.println("========================================");
-            System.out.println("總公告數: " + summaries.size());
-            System.out.println("成功處理: " + successCount + " 筆");
-            System.out.println("失敗處理: " + failureCount + " 筆");
+            logger.info("\n========================================");
+            logger.info("  執行摘要");
+            logger.info("========================================");
+            logger.info("總公告數: " + summaries.size());
+            logger.info("成功處理: " + successCount + " 筆");
+            logger.info("失敗處理: " + failureCount + " 筆");
 
             if (failureCount > 0) {
-                System.out.println("\n失敗的公告：");
+                logger.info("\n失敗的公告：");
                 for (String title : failedAnnouncements) {
-                    System.out.println("  - " + title);
+                    logger.info("  - " + title);
                 }
             }
 
-            System.out.println("========================================\n");
+            logger.info("========================================\n");
 
             // 6. 如果有失敗，返回非零的退出碼
             if (failureCount > 0) {
@@ -122,9 +127,9 @@ public class App {
             }
 
         } catch (Exception e) {
-            System.err.println("\n========================================");
-            System.err.println("程式執行失敗");
-            System.err.println("========================================");
+            logger.error("\n========================================");
+            logger.error("程式執行失敗");
+            logger.error("========================================");
             e.printStackTrace();
             System.exit(1);
         }
@@ -168,7 +173,7 @@ public class App {
     public static void sendAnnouncements(AnnouncementDetail announcementDetail, MailService mailService, String to) throws Exception {
 
         if (announcementDetail == null) {
-            System.err.println("⚠ 公告詳細內容為空，跳過郵件發送");
+            logger.error("⚠ 公告詳細內容為空，跳過郵件發送");
             return;
         }
 
@@ -207,9 +212,9 @@ public class App {
                     "每日公告通知",
                     sb.toString()
             );
-            System.out.println("✓ 郵件發送成功");
+            logger.info("✓ 郵件發送成功");
         } catch (Exception e) {
-            System.err.println("✗ 郵件發送失敗: " + e.getMessage());
+            logger.error("✗ 郵件發送失敗: " + e.getMessage());
             throw e;  // 重新拋出，讓上層知道失敗
         }
     }
@@ -235,7 +240,7 @@ public class App {
                     errorMessage
             );
         } catch (Exception mailError) {
-            System.err.println("無法發送錯誤通知郵件: " + mailError.getMessage());
+            logger.error("無法發送錯誤通知郵件: " + mailError.getMessage());
         }
     }
 
