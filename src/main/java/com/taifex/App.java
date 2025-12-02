@@ -2,11 +2,15 @@ package com.taifex;
 
 import com.taifex.entity.AnnouncementDetail;
 import com.taifex.entity.AnnouncementSummary;
+import com.taifex.entity.Attachment;
+import com.taifex.utility.LinePushMessage;
 import com.taifex.utility.MailService;
 
+import java.io.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class App {
@@ -16,27 +20,98 @@ public class App {
     private static final DateTimeFormatter FORMATTER_YYYY_MM_DD = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public static void main(String[] args) throws Exception {
-//        final String url = "https://www.ccjhs.tp.edu.tw/category/news/";
-        final String url = "https://www.ccjhs.tp.edu.tw/category/news/?keyword=%E7%90%83%E5%A0%B4";
 
-        String targetDate = (args.length == 1) ? formatDate(args[0]) : getTodayString();
-        System.out.println("DATE：" + targetDate);
+        final String url = "https://www.ccjhs.tp.edu.tw/category/news/";
+//        final String url = "https://www.ccjhs.tp.edu.tw/category/news/?keyword=%E7%90%83%E5%A0%B4";
 
-        List<AnnouncementSummary> summaries = Crawler.fetchSummaries(targetDate, url);
+        String targetDate = "";
+        String type = "";
+
+        /**
+         *  無參數：當日、關鍵字
+         *  1參數：指定日、關鍵字
+         *  2參數：指定日、全部
+        * */
+        if (args.length == 0){
+            targetDate = getTodayString();
+            type = "";
+        }else if(args.length == 1){
+            targetDate = formatDate(args[0]);
+            type = "";
+        }else if(args.length == 2){
+            targetDate = formatDate(args[0]);
+            type = "ALL";
+        }else {
+            return;
+        }
+
+//        System.out.println("DATE：" + targetDate);
+
+        // 判斷該日期下是否有抓到URL，原本是為了抓到google表單後，就不繼續跑了
+        String urlFilePath = "D:\\shuyu\\1.Code\\RUN\\Crawl_Zhongzheng\\url_"+targetDate+".txt";
+        File file = new File(urlFilePath);
+        if (file.exists() && file.length() > 0) {
+            return;
+        }
+
+
+        List<AnnouncementSummary> summaries = Crawler.fetchSummaries(targetDate, url, type);
+        List<AnnouncementDetail> sendMSGs = new ArrayList<AnnouncementDetail>();
         for (AnnouncementSummary s : summaries) {
-            System.out.println("Summary: " + s.getTitle());
-            System.out.println("  Link: " + s.getLink());
 
             AnnouncementDetail detail = Crawler.fetchAnnouncementDetail(s.getLink());
 
-            if (detail != null) {
-                System.out.println("  Subject: " + detail.getSubject());
-                System.out.println("  Content: " + detail.getContent());
-                System.out.println("  Attachments: " + detail.getAttachments());
-                System.out.println("  GOOGLE_URL: " + detail.getAttachments().get(0).getUrl());
+            if (detail == null) {
+                return;
             }
-            MailService mailService = new MailService("SendMaill", "16Password");
-            sendAnnouncements(detail, mailService, "TOMAILL");
+            sendMSGs.add(detail);
+
+        }
+
+        // 整理訊息內容
+        StringBuilder msgStringBuider = new StringBuilder();
+        if(sendMSGs.size() == 0){
+            return;
+        }
+
+        msgStringBuider.append("今日符合關鍵字的公告如下：\n\n");
+        for(AnnouncementDetail announcementDetail:sendMSGs){
+            msgStringBuider.append("【日期】").append(announcementDetail.getDate()).append("\n");
+            msgStringBuider.append("【主旨】").append(announcementDetail.getSubject()).append("\n");
+            if(!announcementDetail.getAttachments().isEmpty()){
+                msgStringBuider.append("【網址】").append(announcementDetail.getAttachments().get(0).getUrl()).append("\n\n");
+            }
+            msgStringBuider.append("======================\n\n");
+        }
+
+        // 發Line
+        LinePushMessage.broadcastMessage(msgStringBuider.toString());
+//        LinePushMessage.broadcastMessage("TEST");
+
+        // 發Email
+        String mailToFilePath = "D:\\shuyu\\1.Code\\RUN\\Crawl_Zhongzheng\\MailTo.txt";
+        String mailToString = readEmailsToString(mailToFilePath);
+
+        MailService mailService = new MailService("SendMaill", "16Password");
+        sendAnnouncements(msgStringBuider.toString(), mailService, mailToString );
+
+
+        try (FileWriter writer = new FileWriter(urlFilePath)) {
+            if(type.equals("ALL")){
+                writer.write(type+"\n");
+            }
+            for(AnnouncementDetail sendMSG:sendMSGs){
+                if(!sendMSG.getAttachments().isEmpty()){
+                    for(Attachment attachment:sendMSG.getAttachments()){
+
+                        writer.write(attachment.getUrl()+"\n");
+                    }
+                    System.out.println("URL 已寫入到檔案！");
+                }
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
 
     }
@@ -76,26 +151,39 @@ public class App {
     /**
      * 寄出郵件
      */
-    public static void sendAnnouncements(AnnouncementDetail announcementDetail, MailService mailService, String to) throws Exception {
+    public static void sendAnnouncements(String announcementDetails, MailService mailService, String to) throws Exception {
 
-        if (announcementDetail == null) {
+        if (announcementDetails == null) {
             return; // no data
         }
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("今日符合關鍵字的公告如下：\n\n");
-
-
-        sb.append("【主旨】").append(announcementDetail.getSubject()).append("\n");
-        sb.append("【日期】").append(announcementDetail.getDate()).append("\n");
-        sb.append("【網址】").append(announcementDetail.getAttachments().get(0).getUrl()).append("\n\n");
-
-
         mailService.sendMail(
                 to,
-                "每日公告通知",
-                sb.toString()
+                "(非社交工程)中正國中 每日公告通知",
+                announcementDetails
         );
+    }
+
+    public static String readEmailsToString(String filePath) throws IOException {
+        StringBuilder result = new StringBuilder();
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            boolean first = true;
+
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+
+                if (!line.isEmpty()) {
+                    if (!first) {
+                        result.append(",");
+                    }
+                    result.append(line);
+                    first = false;
+                }
+            }
+        }
+        return result.toString();
     }
 
 }

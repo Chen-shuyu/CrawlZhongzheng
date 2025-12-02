@@ -41,7 +41,7 @@ public class Crawler {
     /**
      * Fetch announcement summaries from listing page.
      */
-    public static List<AnnouncementSummary> fetchSummaries(String targetDate, String url) {
+    public static List<AnnouncementSummary> fetchSummaries(String targetDate, String url, String type) {
 
         List<AnnouncementSummary> list = new ArrayList<AnnouncementSummary>();
 
@@ -59,7 +59,7 @@ public class Crawler {
                 if (date.equals(targetDate)) {
 
                     String title = row.select(".nt_subject a").text().trim();
-                    if (!isTargetAnnouncement(title)) {
+                    if (!isTargetAnnouncement(title, type)) {
                         System.out.println(title + " >> 不符合關鍵字!!! ");
                         continue; // skip unrelated titles
                     }
@@ -144,7 +144,9 @@ public class Crawler {
     // -----------------------------------------------
     // keyword filter
     // -----------------------------------------------
-    private static boolean isTargetAnnouncement(String title) {
+    private static boolean isTargetAnnouncement(String title, String type) {
+        if(type.equals("ALL")) return true;
+
         String t = title.toLowerCase();
 
         // strict match first
