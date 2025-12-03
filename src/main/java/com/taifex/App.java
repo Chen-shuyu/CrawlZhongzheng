@@ -3,6 +3,7 @@ package com.taifex;
 import com.taifex.entity.AnnouncementDetail;
 import com.taifex.entity.AnnouncementSummary;
 import com.taifex.entity.Attachment;
+import com.taifex.utility.ConfigManager;
 import com.taifex.utility.CrawlerException;
 import com.taifex.utility.LinePushMessage;
 import com.taifex.utility.MailService;
@@ -24,7 +25,7 @@ public class App {
     // 定義日期格式
     private static final DateTimeFormatter FORMATTER_YYYYMMDD = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter FORMATTER_YYYY_MM_DD = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final String MAIN_PATH = "D:\\ShuYuChen\\3.Practice\\3.1.Project\\CrawlZhongzheng\\";
+    private static final String MAIN_PATH = ConfigManager.getMainPath();
 
     public static void main(String[] args) throws Exception {
         logger.info("========================================");
