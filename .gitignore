@@ -63,6 +63,7 @@ Desktop.ini
 # Logs & temp files
 ############################
 *.log
+*.log.gz
 *.tmp
 *.temp
 

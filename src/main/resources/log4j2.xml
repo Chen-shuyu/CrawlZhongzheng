@@ -9,6 +9,8 @@
         <Property name="LOG_PATTERN_WITH_LOCATION">
             [%d{yyyy-MM-dd HH:mm:ss}] [%-5level] [%c{1}:%L] %msg%n
         </Property>
+        <!-- 專案名稱 -->
+        <Property name="PROJECT_NAME">crawler</Property>
     </Properties>
 
     <Appenders>
@@ -17,31 +19,48 @@
             <PatternLayout pattern="${LOG_PATTERN}"/>
         </Console>
 
-        <!-- 主要日誌檔（自動按日期輪轉） -->
+        <!--
+            主要日誌檔
+            執行時檔案：crawler-20241203-153045.log (程式啟動時建立)
+        -->
         <RollingFile name="RollingFile"
-                     fileName="logs/app.log"
-                     filePattern="logs/app-%d{yyyy-MM-dd}-%i.log.gz">
+                     fileName="logs/${PROJECT_NAME}_${date:yyyyMMddHHmmss}.log"
+                     filePattern="logs/${PROJECT_NAME}_%d{yyyyMMdd}_%i.log.gz">
             <PatternLayout pattern="${LOG_PATTERN}"/>
             <Policies>
-                <!-- 每天輪轉 -->
+                <!-- 每天午夜輪轉 -->
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
-                <!-- 檔案大小超過 10MB 也輪轉 -->
-                <SizeBasedTriggeringPolicy size="10MB"/>
+                <!-- 檔案大小超過 50MB 也輪轉 -->
+                <SizeBasedTriggeringPolicy size="50MB"/>
             </Policies>
-            <!-- 保留最近 30 個檔案 -->
-            <DefaultRolloverStrategy max="30"/>
+            <!-- 保留最近 30 個壓縮檔 -->
+            <DefaultRolloverStrategy max="30">
+                <!-- 自動刪除超過 30 天的檔案 -->
+                <Delete basePath="logs" maxDepth="1">
+                    <IfFileName glob="${PROJECT_NAME}_*.log.gz"/>
+                    <IfLastModified age="30d"/>
+                </Delete>
+            </DefaultRolloverStrategy>
         </RollingFile>
 
-        <!-- 錯誤日誌檔（只記錄 ERROR 級別） -->
+        <!--
+            錯誤日誌檔
+            執行時檔案：crawler-error-20241203-153045.log
+        -->
         <RollingFile name="ErrorFile"
-                     fileName="logs/error.log"
-                     filePattern="logs/error-%d{yyyy-MM-dd}-%i.log.gz">
+                     fileName="logs/${PROJECT_NAME}_error_${date:yyyyMMddHHmmss}.log"
+                     filePattern="logs/${PROJECT_NAME}_error_%d{yyyyMMdd}-%i.log.gz">
             <PatternLayout pattern="${LOG_PATTERN_WITH_LOCATION}"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
-                <SizeBasedTriggeringPolicy size="10MB"/>
+                <SizeBasedTriggeringPolicy size="50MB"/>
             </Policies>
-            <DefaultRolloverStrategy max="30"/>
+            <DefaultRolloverStrategy max="30">
+                <Delete basePath="logs" maxDepth="1">
+                    <IfFileName glob="${PROJECT_NAME}_error_*.log.gz"/>
+                    <IfLastModified age="30d"/>
+                </Delete>
+            </DefaultRolloverStrategy>
             <!-- 只記錄 ERROR -->
             <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
         </RollingFile>
@@ -55,7 +74,7 @@
             <AppenderRef ref="ErrorFile"/>
         </Logger>
 
-        <!-- Jsoup 的日誌（只記錄 WARN 以上，避免太吵） -->
+        <!-- Jsoup 的日誌（只記錄 WARN 以上） -->
         <Logger name="org.jsoup" level="warn" additivity="false">
             <AppenderRef ref="Console"/>
             <AppenderRef ref="RollingFile"/>
