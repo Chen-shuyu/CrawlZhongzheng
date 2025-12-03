@@ -58,7 +58,7 @@ public class Crawler {
      * Fetch announcement summaries from listing page.
      * 改進：加入重試機制和更好的錯誤處理
      */
-    public static List<AnnouncementSummary> fetchSummaries(String targetDate, String url) throws CrawlerException {
+    public static List<AnnouncementSummary> fetchSummaries(String targetDate, String url, String type) throws CrawlerException {
         logger.info("===== 開始抓取公告列表 =====");
         logger.info("目標日期: " + targetDate);
         logger.info("目標網址: " + url);
@@ -92,15 +92,14 @@ public class Crawler {
 
                     if (date.equals(targetDate)) {
 
-                        String title = row.select(".nt_subject a").text().trim();
-                        if (!isTargetAnnouncement(title)) {
-                            logger.info(title + " >> 不符合關鍵字!!! ");
-                            continue; // skip unrelated titles
-                        }
-
-                        String link = row.select(".nt_subject a").attr("href");
-                        String category = row.select(".nt_category").text().trim();
-                        String unit = row.select(".nt_unit").text().trim();
+                    String title = row.select(".nt_subject a").text().trim();
+                    if (!isTargetAnnouncement(title, type)) {
+                        logger.info(title + " >> 不符合關鍵字!!! ");
+                        continue; // skip unrelated titles
+                    }
+                    String link = row.select(".nt_subject a").attr("href");
+                    String category = row.select(".nt_category").text().trim();
+                    String unit = row.select(".nt_unit").text().trim();
 
                         AnnouncementSummary summary = new AnnouncementSummary(
                                 date, title, category, unit, link
@@ -274,7 +273,9 @@ public class Crawler {
     // -----------------------------------------------
     // keyword filter
     // -----------------------------------------------
-    private static boolean isTargetAnnouncement(String title) {
+    private static boolean isTargetAnnouncement(String title, String type) {
+        if(type.equals("ALL")) return true;
+
         String t = title.toLowerCase();
 
         // strict match first

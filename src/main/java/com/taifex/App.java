@@ -2,11 +2,14 @@ package com.taifex;
 
 import com.taifex.entity.AnnouncementDetail;
 import com.taifex.entity.AnnouncementSummary;
+import com.taifex.entity.Attachment;
+import com.taifex.utility.LinePushMessage;
 import com.taifex.utility.CrawlerException;
 import com.taifex.utility.MailService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -27,11 +30,43 @@ public class App {
         logger.info("  中正國中公告爬蟲 v2.0");
         logger.info("========================================\n");
 
+        String targetDate = "";
+        String type = "";
+
+        /**
+         *  無參數：當日、關鍵字
+         *  1參數：指定日、關鍵字
+         *  2參數：指定日、全部
+         * */
+        if (args.length == 0){
+            targetDate = getTodayString();
+            type = "";
+        }else if(args.length == 1){
+            targetDate = formatDate(args[0]);
+            type = "";
+        }else if(args.length == 2){
+            targetDate = formatDate(args[0]);
+            type = "ALL";
+        }else {
+            return;
+        }
+
+//        System.out.println("DATE：" + targetDate);
+
+        // 判斷該日期下是否有抓到URL，原本是為了抓到google表單後，就不繼續跑了
+        String urlFilePath = "D:\\shuyu\\1.Code\\RUN\\Crawl_Zhongzheng\\url_"+targetDate+".txt";
+        File file = new File(urlFilePath);
+        if (file.exists() && file.length() > 0) {
+            return;
+        }
+
+
+
+
         final String url = "https://www.ccjhs.tp.edu.tw/category/news/";
 
         try {
             // 1. 取得目標日期
-            String targetDate = (args.length == 1) ? formatDate(args[0]) : getTodayString();
             logger.info("DATE：" + targetDate);
 
             // 2. 抓取公告列表（加入錯誤處理）
@@ -66,12 +101,16 @@ public class App {
             logger.info("========================================\n");
 
             // 3. 建立郵件服務（只建立一次）
-            MailService mailService = new MailService("SendMail", "16Password");
+//            MailService mailService = new MailService("SendMail", "16Password");
 
             // 4. 處理每個公告（改進：一個失敗不影響其他）
             int successCount = 0;
             int failureCount = 0;
             List<String> failedAnnouncements = new ArrayList<>();
+
+
+            List<AnnouncementDetail> sendMSGs = new ArrayList<AnnouncementDetail>();
+
 
             for (int i = 0; i < summaries.size(); i++) {
                 AnnouncementSummary summary = summaries.get(i);
@@ -82,6 +121,11 @@ public class App {
                 try {
                     // 4.1 抓取詳細內容
                     AnnouncementDetail detail = Crawler.fetchAnnouncementDetail(summary.getLink());
+
+                    if (detail == null) {
+                        return;
+                    }
+                    sendMSGs.add(detail);
 
                     // 4.2 發送郵件
 //                    sendAnnouncements(detail, mailService, "TOMAIL");
@@ -104,6 +148,52 @@ public class App {
                 }
             }
 
+            // 整理訊息內容
+            StringBuilder msgStringBuider = new StringBuilder();
+            if(sendMSGs.size() == 0){
+                return;
+            }
+
+
+            msgStringBuider.append("今日符合關鍵字的公告如下：\n\n");
+            for(AnnouncementDetail announcementDetail:sendMSGs){
+                msgStringBuider.append("【日期】").append(announcementDetail.getDate()).append("\n");
+                msgStringBuider.append("【主旨】").append(announcementDetail.getSubject()).append("\n");
+                if(!announcementDetail.getAttachments().isEmpty()){
+                    msgStringBuider.append("【網址】").append(announcementDetail.getAttachments().get(0).getUrl()).append("\n\n");
+                }
+                msgStringBuider.append("======================\n\n");
+            }
+
+            // 發Line
+            LinePushMessage.broadcastMessage(msgStringBuider.toString());
+//        LinePushMessage.broadcastMessage("TEST");
+
+            // 發Email
+            String mailToFilePath = "D:\\shuyu\\1.Code\\RUN\\Crawl_Zhongzheng\\MailTo.txt";
+            String mailToString = readEmailsToString(mailToFilePath);
+
+            MailService mailService = new MailService("SendMaill", "16Password");
+            sendAnnouncements(msgStringBuider.toString(), mailService, mailToString );
+
+            try (FileWriter writer = new FileWriter(urlFilePath)) {
+                if(type.equals("ALL")){
+                    writer.write(type+"\n");
+                }
+                for(AnnouncementDetail sendMSG:sendMSGs){
+                    if(!sendMSG.getAttachments().isEmpty()){
+                        for(Attachment attachment:sendMSG.getAttachments()){
+
+                            writer.write(attachment.getUrl()+"\n");
+                        }
+                        System.out.println("URL 已寫入到檔案！");
+                    }
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
             // 5. 顯示最終統計
             logger.info("\n========================================");
             logger.info("  執行摘要");
@@ -118,7 +208,6 @@ public class App {
                     logger.info("  - " + title);
                 }
             }
-
             logger.info("========================================\n");
 
             // 6. 如果有失敗，返回非零的退出碼
@@ -170,53 +259,43 @@ public class App {
     /**
      * 寄出郵件（改進：檢查附件是否存在）
      */
-    public static void sendAnnouncements(AnnouncementDetail announcementDetail, MailService mailService, String to) throws Exception {
+    public static void sendAnnouncements(String announcementDetails, MailService mailService, String to) throws Exception {
 
-        if (announcementDetail == null) {
+        if (announcementDetails == null) {
             logger.error("⚠ 公告詳細內容為空，跳過郵件發送");
-            return;
+            return; // no data
         }
 
         StringBuilder sb = new StringBuilder();
         sb.append("今日符合關鍵字的公告如下：\n\n");
 
-        sb.append("【主旨】").append(announcementDetail.getSubject()).append("\n");
-        sb.append("【日期】").append(announcementDetail.getDate()).append("\n");
+        mailService.sendMail(
+                to,
+                "(非社交工程)中正國中 每日公告通知",
+                announcementDetails
+        );
+    }
 
-        // 改進：檢查附件是否存在
-        if (announcementDetail.getAttachments() != null &&
-                !announcementDetail.getAttachments().isEmpty()) {
+    public static String readEmailsToString(String filePath) throws IOException {
+        StringBuilder result = new StringBuilder();
 
-            sb.append("【網址】").append(announcementDetail.getAttachments().get(0).getUrl()).append("\n");
+        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            boolean first = true;
 
-            // 如果有多個附件，列出所有
-            if (announcementDetail.getAttachments().size() > 1) {
-                sb.append("\n其他附件：\n");
-                for (int i = 1; i < announcementDetail.getAttachments().size(); i++) {
-                    sb.append("  ").append(i).append(". ")
-                            .append(announcementDetail.getAttachments().get(i).getName())
-                            .append(" - ")
-                            .append(announcementDetail.getAttachments().get(i).getUrl())
-                            .append("\n");
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+
+                if (!line.isEmpty()) {
+                    if (!first) {
+                        result.append(",");
+                    }
+                    result.append(line);
+                    first = false;
                 }
             }
-        } else {
-            sb.append("【網址】（無附件）\n");
         }
-
-        sb.append("\n");
-
-        try {
-            mailService.sendMail(
-                    to,
-                    "每日公告通知",
-                    sb.toString()
-            );
-            logger.info("✓ 郵件發送成功");
-        } catch (Exception e) {
-            logger.error("✗ 郵件發送失敗: " + e.getMessage());
-            throw e;  // 重新拋出，讓上層知道失敗
-        }
+        return result.toString();
     }
 
     /**
