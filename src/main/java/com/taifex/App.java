@@ -3,8 +3,8 @@ package com.taifex;
 import com.taifex.entity.AnnouncementDetail;
 import com.taifex.entity.AnnouncementSummary;
 import com.taifex.entity.Attachment;
-import com.taifex.utility.LinePushMessage;
 import com.taifex.utility.CrawlerException;
+import com.taifex.utility.LinePushMessage;
 import com.taifex.utility.MailService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,6 +24,7 @@ public class App {
     // 定義日期格式
     private static final DateTimeFormatter FORMATTER_YYYYMMDD = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter FORMATTER_YYYY_MM_DD = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final String MAIN_PATH = "D:\\ShuYuChen\\3.Practice\\3.1.Project\\CrawlZhongzheng\\";
 
     public static void main(String[] args) throws Exception {
         logger.info("========================================");
@@ -38,30 +39,25 @@ public class App {
          *  1參數：指定日、關鍵字
          *  2參數：指定日、全部
          * */
-        if (args.length == 0){
+        if (args.length == 0) {
             targetDate = getTodayString();
             type = "";
-        }else if(args.length == 1){
+        } else if (args.length == 1) {
             targetDate = formatDate(args[0]);
             type = "";
-        }else if(args.length == 2){
+        } else if (args.length == 2) {
             targetDate = formatDate(args[0]);
             type = "ALL";
-        }else {
+        } else {
             return;
         }
 
-//        System.out.println("DATE：" + targetDate);
-
         // 判斷該日期下是否有抓到URL，原本是為了抓到google表單後，就不繼續跑了
-        String urlFilePath = "D:\\shuyu\\1.Code\\RUN\\Crawl_Zhongzheng\\url_"+targetDate+".txt";
+        String urlFilePath = MAIN_PATH + "url_" + targetDate + ".txt";
         File file = new File(urlFilePath);
         if (file.exists() && file.length() > 0) {
             return;
         }
-
-
-
 
         final String url = "https://www.ccjhs.tp.edu.tw/category/news/";
 
@@ -72,7 +68,7 @@ public class App {
             // 2. 抓取公告列表（加入錯誤處理）
             List<AnnouncementSummary> summaries;
             try {
-                summaries = Crawler.fetchSummaries(targetDate, url);
+                summaries = Crawler.fetchSummaries(targetDate, url, type);
             } catch (CrawlerException e) {
                 logger.error("\n========================================");
                 logger.error("錯誤：無法抓取公告列表");
@@ -100,17 +96,12 @@ public class App {
             logger.info("找到 " + summaries.size() + " 筆符合的公告");
             logger.info("========================================\n");
 
-            // 3. 建立郵件服務（只建立一次）
-//            MailService mailService = new MailService("SendMail", "16Password");
-
-            // 4. 處理每個公告（改進：一個失敗不影響其他）
+            // 3. 處理每個公告（改進：一個失敗不影響其他）
             int successCount = 0;
             int failureCount = 0;
             List<String> failedAnnouncements = new ArrayList<>();
 
-
             List<AnnouncementDetail> sendMSGs = new ArrayList<AnnouncementDetail>();
-
 
             for (int i = 0; i < summaries.size(); i++) {
                 AnnouncementSummary summary = summaries.get(i);
@@ -119,16 +110,13 @@ public class App {
                 logger.info("連結: " + summary.getLink());
 
                 try {
-                    // 4.1 抓取詳細內容
+                    // 3.1 抓取詳細內容
                     AnnouncementDetail detail = Crawler.fetchAnnouncementDetail(summary.getLink());
 
                     if (detail == null) {
                         return;
                     }
                     sendMSGs.add(detail);
-
-                    // 4.2 發送郵件
-//                    sendAnnouncements(detail, mailService, "TOMAIL");
 
                     successCount++;
                     logger.info("✓ 處理成功");
@@ -148,45 +136,44 @@ public class App {
                 }
             }
 
-            // 整理訊息內容
+            // 3.2 整理訊息內容
             StringBuilder msgStringBuider = new StringBuilder();
-            if(sendMSGs.size() == 0){
+            if (sendMSGs.size() == 0) {
                 return;
             }
 
-
             msgStringBuider.append("今日符合關鍵字的公告如下：\n\n");
-            for(AnnouncementDetail announcementDetail:sendMSGs){
+            for (AnnouncementDetail announcementDetail : sendMSGs) {
                 msgStringBuider.append("【日期】").append(announcementDetail.getDate()).append("\n");
                 msgStringBuider.append("【主旨】").append(announcementDetail.getSubject()).append("\n");
-                if(!announcementDetail.getAttachments().isEmpty()){
+                if (!announcementDetail.getAttachments().isEmpty()) {
                     msgStringBuider.append("【網址】").append(announcementDetail.getAttachments().get(0).getUrl()).append("\n\n");
                 }
                 msgStringBuider.append("======================\n\n");
             }
 
-            // 發Line
+            // 3.3 發Line
             LinePushMessage.broadcastMessage(msgStringBuider.toString());
-//        LinePushMessage.broadcastMessage("TEST");
 
-            // 發Email
-            String mailToFilePath = "D:\\shuyu\\1.Code\\RUN\\Crawl_Zhongzheng\\MailTo.txt";
+            // 3.4 發Email
+            String mailToFilePath = MAIN_PATH + "MailTo.txt";
             String mailToString = readEmailsToString(mailToFilePath);
 
             MailService mailService = new MailService("SendMaill", "16Password");
-            sendAnnouncements(msgStringBuider.toString(), mailService, mailToString );
+            sendAnnouncements(msgStringBuider.toString(), mailService, mailToString);
 
+            // 4. 將URL寫入檔案
             try (FileWriter writer = new FileWriter(urlFilePath)) {
-                if(type.equals("ALL")){
-                    writer.write(type+"\n");
+                if (type.equals("ALL")) {
+                    writer.write(type + "\n");
                 }
-                for(AnnouncementDetail sendMSG:sendMSGs){
-                    if(!sendMSG.getAttachments().isEmpty()){
-                        for(Attachment attachment:sendMSG.getAttachments()){
+                for (AnnouncementDetail sendMSG : sendMSGs) {
+                    if (!sendMSG.getAttachments().isEmpty()) {
+                        for (Attachment attachment : sendMSG.getAttachments()) {
 
-                            writer.write(attachment.getUrl()+"\n");
+                            writer.write(attachment.getUrl() + "\n");
                         }
-                        System.out.println("URL 已寫入到檔案！");
+                        logger.info("URL 已寫入到檔案！");
                     }
                 }
 
