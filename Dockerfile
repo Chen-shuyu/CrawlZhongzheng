@@ -9,7 +9,8 @@ RUN mvn dependency:go-offline -B
 
 # 複製程式原始碼，並執行 Maven 打包
 COPY src ./src
-RUN mvn clean package -DskipTests
+# 【關鍵修改 1】強制 Maven 在打包時，把相依套件獨立抽離到 target/lib 資料夾中
+RUN mvn clean package dependency:copy-dependencies -DoutputDirectory=target/lib -DskipTests
 
 # === 第二階段：正式運行舞台 ===
 # 同樣加上 docker.io/library/ 明確指定來源倉庫
@@ -20,5 +21,5 @@ WORKDIR /app
 COPY --from=builder /build/target/CrawlZhongzheng-1.0.jar ./app.jar
 COPY --from=builder /build/target/lib ./lib
 
-# 宣告容器啟動時的執行指令
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# 【關鍵修改 2】不依賴 JAR 檔內部的設定，直接用 -cp 參數強制指定套件位置與進入點
+ENTRYPOINT ["java", "-cp", "app.jar:lib/*", "com.taifex.App"]
