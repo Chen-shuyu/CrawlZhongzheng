@@ -94,12 +94,12 @@
                     <archive>
                         <manifest>
                             <addClasspath>true</addClasspath>
-                            <mainClass>com.example.CrawlMain</mainClass>
+                            <mainClass>com.taifex.App</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
             </plugin>
-            
+
             <!-- Maven Assembly Plugin - 打包成可執行JAR -->
             <!-- <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
