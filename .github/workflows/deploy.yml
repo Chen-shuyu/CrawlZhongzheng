@@ -29,6 +29,7 @@ jobs:
         podman run -d \
           --name crawl-zhongzheng-service \
           --restart always \
+          -v /workspace/deploy/active-bots/CrawlZhongzheng/logs:/app/logs \
           crawl-zhongzheng:latest
           
     - name: 📊 步驟四：檢查運行狀態
