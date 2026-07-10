@@ -1,0 +1,32 @@
+name: 居家伺服器自動部署測試
+
+# 觸發條件：當有人 push 程式碼到 main 或 master 分支時自動執行
+on:
+  push:
+    branches: [ "main", "master" ]
+
+jobs:
+  deploy-to-home-server:
+    # 關鍵設定：指定這項任務要派給擁有 self-hosted 標籤的機器 (也就是您家裡的 Linux 伺服器)
+    runs-on: self-hosted
+    
+    steps:
+    - name: 📥 步驟一：拉取最新程式碼
+      uses: actions/checkout@v4
+      
+    - name: 🔍 步驟二：執行測試環境確認
+      run: |
+        echo "🎉 成功！GitHub 已經成功呼叫家裡的 Red Hat 10.2 伺服器！"
+        echo "目前 Runner 的工作路徑是："
+        pwd
+        echo "這個目錄下包含的爬蟲程式檔案有："
+        ls -la
+
+    - name: ☕ 步驟三：驗證 Java 與 Maven 環境
+      run: |
+        echo "檢查我們剛剛安裝的 Java："
+        java -version
+        echo "檢查我們剛剛統一設定的 Maven："
+        mvn -version
+        # 如果您的專案裡確定有 pom.xml，未來可以把下面這行註解拿掉，讓它自動幫您編譯！
+        # mvn clean package

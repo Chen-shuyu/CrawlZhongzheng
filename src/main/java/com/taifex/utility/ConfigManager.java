@@ -18,6 +18,7 @@ public class ConfigManager {
                 throw new IOException("找不到 application.properties");
             }
             properties.load(input);
+            logger.info("已載入 application.properties");
         } catch (IOException e) {
             throw new RuntimeException("設定檔載入失敗", e);
         }

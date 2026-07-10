@@ -207,6 +207,7 @@ public class App {
             logger.error("\n========================================");
             logger.error("程式執行失敗");
             logger.error("========================================");
+            sendErrorNotification(e);
             e.printStackTrace();
             System.exit(1);
         }
