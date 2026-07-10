@@ -29,6 +29,7 @@ jobs:
         podman run -d \
           --name crawl-zhongzheng-service \
           --restart always \
+          --network host \
           -v /workspace/deploy/active-bots/CrawlZhongzheng/logs:/app/logs \
           crawl-zhongzheng:latest
           
