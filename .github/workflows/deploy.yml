@@ -1,32 +1,36 @@
-name: 居家伺服器自動部署測試
+name: 居家伺服器容器化自動部署
 
-# 觸發條件：當有人 push 程式碼到 main 或 master 分支時自動執行
 on:
   push:
     branches: [ "main", "master" ]
 
 jobs:
-  deploy-to-home-server:
-    # 關鍵設定：指定這項任務要派給擁有 self-hosted 標籤的機器 (也就是您家裡的 Linux 伺服器)
+  deploy-container:
     runs-on: self-hosted
     
     steps:
-    - name: 📥 步驟一：拉取最新程式碼
+    - name: 📥 步驟一：拉取最新原始碼
       uses: actions/checkout@v4
       
-    - name: 🔍 步驟二：執行測試環境確認
+    - name: 🛠️ 步驟二：使用 Podman 打包容器鏡像
       run: |
-        echo "🎉 成功！GitHub 已經成功呼叫家裡的 Red Hat 10.2 伺服器！"
-        echo "目前 Runner 的工作路徑是："
-        pwd
-        echo "這個目錄下包含的爬蟲程式檔案有："
-        ls -la
-
-    - name: ☕ 步驟三：驗證 Java 與 Maven 環境
+        # 建立名為 crawl-zhongzheng 的本地容器鏡像
+        podman build -t crawl-zhongzheng:latest .
+        
+    - name: 🔄 步驟三：汰換舊容器並重啟新服務
       run: |
-        echo "檢查我們剛剛安裝的 Java："
-        java -version
-        echo "檢查我們剛剛統一設定的 Maven："
-        mvn -version
-        # 如果您的專案裡確定有 pom.xml，未來可以把下面這行註解拿掉，讓它自動幫您編譯！
-        mvn clean package
+        # 1. 停止舊的容器 (如果存在的話，加上 || true 防止第一次執行噴錯)
+        podman stop crawl-zhongzheng-service || true
+        
+        # 2. 刪除舊的容器
+        podman rm crawl-zhongzheng-service || true
+        
+        # 3. 用最新的鏡像啟動新容器，並讓它在背景長期執行 (--restart always 確保開機自啟)
+        podman run -d \
+          --name crawl-zhongzheng-service \
+          --restart always \
+          crawl-zhongzheng:latest
+          
+    - name: 📊 步驟四：檢查運行狀態
+      run: |
+        podman ps -a | grep crawl-zhongzheng-service
