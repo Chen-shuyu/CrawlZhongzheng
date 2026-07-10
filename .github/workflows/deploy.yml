@@ -29,4 +29,4 @@ jobs:
         echo "檢查我們剛剛統一設定的 Maven："
         mvn -version
         # 如果您的專案裡確定有 pom.xml，未來可以把下面這行註解拿掉，讓它自動幫您編譯！
-        # mvn clean package
+        mvn clean package
